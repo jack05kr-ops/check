@@ -2,275 +2,296 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>사업장 점검관리 (스마트 시트 인식)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>사업장 점검관리</title>
 <style>
-*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#f5f6f8;color:#222}
-header{background:#222;color:#fff;padding:16px 20px}main{max-width:1200px;margin:auto;padding:18px}
-.card{background:#fff;border-radius:12px;padding:16px;margin-bottom:14px;box-shadow:0 2px 10px #0001}
-button{border:0;border-radius:8px;padding:9px 12px;background:#222;color:#fff;cursor:pointer;margin:3px}
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,Arial,sans-serif;background:#f5f6f8;color:#222}
+header{background:#222;color:#fff;padding:16px 20px}main{padding:12px;max-width:1200px;margin:auto}
+.card{background:#fff;border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px #0001}
+button{border:0;border-radius:8px;padding:10px 14px;background:#222;color:#fff;font-weight:bold;cursor:pointer;margin:2px}
 button.secondary{background:#e9ecef;color:#222}
-input,select,textarea{padding:9px;border:1px solid #ccc;border-radius:8px;margin:3px}
-input{max-width:100%}textarea{width:100%;min-height:70px}
-#rows{max-height:430px;overflow:auto}
-table{width:100%;border-collapse:collapse}th,td{padding:9px;border-bottom:1px solid #eee;text-align:left;font-size:14px}
-.status{font-weight:bold}.muted{color:#777;font-size:13px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-
+input,select,textarea{padding:10px;border:1px solid #ccc;border-radius:8px;margin:3px;font-size:15px;width:100%}
+#rows{max-height:380px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+table{width:100%;border-collapse:collapse}th,td{padding:10px 6px;border-bottom:1px solid #eee;text-align:left;font-size:14px}
+.status{font-weight:bold;color:#0d6efd}.muted{color:#777;font-size:13px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:700px){.grid{grid-template-columns:1fr}}
 .detail-table{width:100%;border-collapse:collapse;font-size:13px}
-.detail-table th{background:#f1f3f5;width:38%;text-align:left;padding:7px 8px;border-bottom:1px solid #e9ecef;color:#495057;font-weight:600}
-.detail-table td{padding:7px 8px;border-bottom:1px solid #e9ecef;word-break:break-all}
-
-@media(max-width:700px){.grid{grid-template-columns:1fr}main{padding:10px}th:nth-child(2),td:nth-child(2){display:none}}
+.detail-table th{background:#f1f3f5;width:38%;text-align:left;padding:8px 6px;border-bottom:1px solid #eee;color:#495057;word-break:keep-all}
+.detail-table td{padding:8px 6px;border-bottom:1px solid #eee;word-break:break-all}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 <header><b>📍 사업장 점검관리</b></header>
 <main>
 <div class="card">
-  <b>데이터 저장형 점검관리</b>
-  <div class="muted">엑셀 내 모든 시트를 자동 탐색하여 유효한 데이터를 불러옵니다.</div>
-  <input type="file" id="file" accept=".xlsx,.xls,.csv">
-  <button onclick="exportData()">점검데이터 Excel 저장</button>
-  <button class="secondary" onclick="clearData()">저장 데이터 초기화</button>
-  <span id="msg" class="muted"></span>
+  <b>엑셀 파일 선택</b>
+  <div class="muted" style="margin-bottom:6px;">점검하실 엑셀 파일을 선택하세요.</div>
+  <input type="file" id="file" accept=".xlsx,.xls,.csv" onchange="handleFile(this)">
+  <div style="margin-top:6px;">
+    <button onclick="exportData()">점검데이터 저장</button>
+    <button class="secondary" onclick="clearData()">데이터 초기화</button>
+  </div>
+  <div id="msg" style="color:blue;margin-top:6px;font-weight:bold;"></div>
 </div>
 
 <div class="grid">
 <div class="card">
-  <h3>사업장 목록</h3>
-  <input id="search" placeholder="업소명 또는 주소 검색" style="width:100%; max-width:260px;">
-  <select id="filter"><option value="">전체</option><option>미점검</option><option>적정</option><option>조치필요</option></select>
-  <span id="count" class="muted"></span>
-  <div id="rows"></div>
+  <h3>사업장 목록 <span id="count" class="muted"></span></h3>
+  <input id="search" placeholder="업소명 또는 주소 검색" oninput="render()">
+  <select id="filter" onchange="render()" style="margin-top:4px;">
+    <option value="">전체 상태</option><option>미점검</option><option>적정</option><option>조치필요</option>
+  </select>
+  <div id="rows" style="margin-top:8px;"></div>
 </div>
 
 <div class="card">
   <h3>점검 및 상세정보</h3>
-  <div id="detail" class="muted">사업장을 선택하세요.</div>
+  <div id="detail" class="muted">목록에서 사업장을 선택하세요.</div>
 </div>
 </div>
 </main>
 
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
-const KEY = "inspectionDataV5";
-let data = JSON.parse(localStorage.getItem(KEY) || "[]");
+const KEY = "inspectionData_iOS_v3";
+let data = [];
+
+try {
+  data = JSON.parse(localStorage.getItem(KEY) || "[]");
+} catch(e) { data = []; }
+
 let selected = null;
 
-document.getElementById("file").addEventListener("change", e => {
- const f = e.target.files[0];
- if(!f) return;
- 
- const reader = new FileReader();
- reader.onload = function(evt) {
-   try {
-     const buffer = evt.target.result;
-     const wb = XLSX.read(buffer, {type: "array"});
-     
-     let rows = [];
-     let usedSheetName = "";
+function handleFile(input) {
+  const f = input.files[0];
+  if (!f) return;
 
-     // 모든 시트를 순회하며 실제 데이터가 들어있는 시트 탐색
-     for (const sheetName of wb.SheetNames) {
-       const ws = wb.Sheets[sheetName];
-       const parsedRows = XLSX.utils.sheet_to_json(ws, {defval:""});
-       
-       // 비어있지 않은 데이터가 유의미하게 존재하는 시트 선택
-       const validRows = parsedRows.filter(r => Object.values(r).some(v => String(v).trim() !== ""));
-       if (validRows.length > 0) {
-         rows = validRows;
-         usedSheetName = sheetName;
-         break;
-       }
-     }
+  if (typeof XLSX === 'undefined') {
+    alert("엑셀 처리 라이브러리를 불러오지 못했습니다.");
+    return;
+  }
 
-     if(!rows || rows.length === 0) {
-       alert("엑셀 파일 내 모든 시트에 읽을 수 있는 데이터가 없습니다.");
-       return;
-     }
+  document.getElementById("msg").textContent = "데이터 연동 처리 중...";
 
-     const incoming = rows.map((r, i) => {
-       const keys = Object.keys(r);
-       
-       // 업소명 키워드 매핑 또는 값이 존재하는 첫번째 열 선택
-       let nk = keys.find(k => /업소명|업체명|사업장명|상호|명칭/i.test(String(k)));
-       if (!nk) {
-         nk = keys.find(k => r[k] && String(r[k]).trim() !== "" && !/구분|순번|no/i.test(String(k))) || keys[0];
-       }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const dataArray = new Uint8Array(e.target.result);
+      const wb = XLSX.read(dataArray, {type: 'array'});
 
-       // 주소 키워드 매핑 또는 두번째 열 선택
-       let ak = keys.find(k => /도로명주소|지번주소|소재지|주소|위치/i.test(String(k)));
-       if (!ak && keys.length > 1) {
-         ak = keys.find(k => k !== nk && r[k] && String(r[k]).trim() !== "") || keys[1];
-       }
+      let combinedList = [];
 
-       const name = nk && r[nk] ? String(r[nk]).trim() : `사업장_${i+1}`;
-       const addr = ak && r[ak] ? String(r[ak]).trim() : "";
+      // 모든 시트를 돌며 유효한 데이터 탐색
+      wb.SheetNames.forEach(sheetName => {
+        let sheet = wb.Sheets[sheetName];
+        let rawGrid = XLSX.utils.sheet_to_json(sheet, {header: 1, defval: ""});
+        if (!rawGrid || rawGrid.length === 0) return;
 
-       return {
-         _id: name + "|" + addr + "|" + i,
-         _name: name,
-         _addr: addr,
-         _status: "미점검",
-         _date: "",
-         _result: "",
-         _memo: "",
-         ...r
-       };
-     });
+        // 1. 헤더 행 찾기 (업소명, 상호, 명칭 등의 단어가 포함된 행)
+        let headerRowIdx = -1;
+        for (let i = 0; i < Math.min(10, rawGrid.length); i++) {
+          let rowStr = rawGrid[i].join(" ");
+          if (/업소명|상호|명칭|사업장/i.test(rowStr)) {
+            headerRowIdx = i;
+            break;
+          }
+        }
 
-     const oldMap = new Map(data.map(x => [x._name + "|" + x._addr, x]));
-     data = incoming.map(x => {
-       const old = oldMap.get(x._name + "|" + x._addr);
-       if(old) {
-         x._status = old._status || "미점검";
-         x._date = old._date || "";
-         x._result = old._result || "";
-         x._memo = old._memo || "";
-       }
-       return x;
-     });
+        if (headerRowIdx !== -1) {
+          // 헤더 기반 데이터 추출
+          let headers = rawGrid[headerRowIdx].map(h => String(h).trim());
+          let nameIdx = headers.findIndex(h => /업소명|상호|명칭/i.test(h));
+          let addrIdx = headers.findIndex(h => /주소|소재지/i.test(h));
 
-     save();
-     render();
-     msg(`Excel 불러오기 성공 (${usedSheetName} 시트, ${data.length}건)`);
-   } catch (err) {
-     alert("엑셀 읽기 실패: " + err.message);
-   }
- };
- reader.readAsArrayBuffer(f);
-});
+          for (let r = headerRowIdx + 1; r < rawGrid.length; r++) {
+            let row = rawGrid[r];
+            let name = nameIdx !== -1 ? String(row[nameIdx] || "").trim() : "";
+            if (!name || name === "업소명" || name === "상호") continue;
 
-document.getElementById("search").addEventListener("input", render);
-document.getElementById("filter").addEventListener("change", render);
+            let addr = addrIdx !== -1 ? String(row[addrIdx] || "").trim() : "";
+            
+            let item = {
+              _id: "shop_" + sheetName + "_" + r,
+              _name: name,
+              _addr: addr,
+              _status: "미점검",
+              _date: "",
+              _result: "",
+              _memo: ""
+            };
 
-function save(){ localStorage.setItem(KEY, JSON.stringify(data)); }
-function msg(t){ document.getElementById("msg").textContent = "  " + t; setTimeout(() => document.getElementById("msg").textContent = "", 2500); }
+            headers.forEach((h, cIdx) => {
+              if (h && row[cIdx] !== undefined && String(row[cIdx]).trim() !== "") {
+                item[h] = String(row[cIdx]).trim();
+              }
+            });
+
+            combinedList.push(item);
+          }
+        } else {
+          // 헤더가 명확하지 않은 단순 목록 형태의 시트일 경우
+          rawGrid.forEach((row, rIdx) => {
+            row.forEach((cell, cIdx) => {
+              let val = String(cell).trim();
+              if (val && val !== "구분" && val !== "업소명" && val !== "목 차" && isNaN(val) && val.length > 1) {
+                // 단순 목록으로 추가
+                if (!combinedList.some(x => x._name === val)) {
+                  combinedList.push({
+                    _id: "shop_" + sheetName + "_" + rIdx + "_" + cIdx,
+                    _name: val,
+                    _addr: "",
+                    _status: "미점검",
+                    _date: "",
+                    _result: "",
+                    _memo: ""
+                  });
+                }
+              }
+            });
+          });
+        }
+      });
+
+      if(combinedList.length === 0) {
+        alert("유효한 사업장 데이터를 찾을 수 없습니다.");
+        document.getElementById("msg").textContent = "";
+        return;
+      }
+
+      // 기존 작성해둔 점검 데이터 매핑 유지
+      const oldMap = new Map(data.map(x => [x._name, x]));
+      data = combinedList.map(x => {
+        const old = oldMap.get(x._name);
+        return old ? {...x, _status: old._status, _date: old._date, _result: old._result, _memo: old._memo} : x;
+      });
+
+      save();
+      render();
+      document.getElementById("msg").textContent = `연동 완료: 총 ${data.length}개 사업장 로드됨`;
+    } catch(err) {
+      alert("엑셀 읽기 중 오류 발생: " + err.message);
+      document.getElementById("msg").textContent = "";
+    }
+  };
+
+  reader.readAsArrayBuffer(f);
+}
+
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(data)); }catch(e){} }
 
 function render(){
- const q = document.getElementById("search").value.toLowerCase();
- const f = document.getElementById("filter").value;
- const arr = data.filter(x => (!q || x._name.toLowerCase().includes(q) || x._addr.toLowerCase().includes(q)) && (!f || x._status === f));
- document.getElementById("count").textContent = ` ${arr.length}개`;
- 
- let html = "<table><thead><tr><th>업소명</th><th>주소</th><th>상태</th></tr></thead><tbody>";
- arr.forEach(x => {
-   html += `<tr data-id="${esc(x._id)}" class="item-row" style="cursor:pointer"><td><b>${esc(x._name)}</b></td><td>${esc(x._addr)}</td><td class="status">${esc(x._status)}</td></tr>`;
- });
- html += "</tbody></table>";
- 
- document.getElementById("rows").innerHTML = html;
+  const q = (document.getElementById("search").value || "").toLowerCase();
+  const f = document.getElementById("filter").value;
+  
+  const arr = data.filter(x => 
+    (!q || x._name.toLowerCase().includes(q) || x._addr.toLowerCase().includes(q)) && 
+    (!f || x._status === f)
+  );
 
- document.querySelectorAll(".item-row").forEach(el => {
-   el.addEventListener("click", () => selectItem(el.getAttribute("data-id")));
- });
+  document.getElementById("count").textContent = `(${arr.length}건)`;
+
+  if(arr.length === 0) {
+    document.getElementById("rows").innerHTML = '<div class="muted" style="padding:10px;">표시할 데이터가 없습니다.</div>';
+    return;
+  }
+
+  let html = "<table><thead><tr><th>업소명</th><th>주소</th><th>상태</th></tr></thead><tbody>";
+  arr.forEach(x => {
+    html += `<tr onclick="selectItem('${esc(x._id)}')" style="cursor:pointer">
+      <td><b>${esc(x._name)}</b></td>
+      <td><span class="muted">${esc(x._addr || '주소 정보 없음')}</span></td>
+      <td class="status">${esc(x._status)}</td>
+    </tr>`;
+  });
+  html += "</tbody></table>";
+
+  document.getElementById("rows").innerHTML = html;
 }
 
 function selectItem(id){
- selected = data.find(x => x._id === id);
- if(!selected) return;
+  selected = data.find(x => x._id === id);
+  if(!selected) return;
 
- let detailRows = "";
- for(const [key, val] of Object.entries(selected)) {
-   if(key.startsWith("_")) continue;
-   detailRows += `<tr><th>${esc(key)}</th><td>${esc(val)}</td></tr>`;
- }
+  let detailHtml = "";
+  for(const [k, v] of Object.entries(selected)) {
+    if(!k.startsWith("_") && String(v).trim() !== "") {
+      detailHtml += `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`;
+    }
+  }
 
- document.getElementById("detail").innerHTML = `
- <div style="margin-bottom:12px;">
-   <h3 style="margin:0 0 4px 0;">${esc(selected._name)}</h3>
-   <div class="muted">${esc(selected._addr)}</div>
- </div>
+  document.getElementById("detail").innerHTML = `
+    <h3 style="margin:0 0 4px 0;">${esc(selected._name)}</h3>
+    <div class="muted" style="margin-bottom:10px;">${esc(selected._addr || '주소 미기재')}</div>
 
- <div style="background:#f8f9fa; padding:12px; border-radius:8px; margin-bottom:16px; border:1px solid #e9ecef;">
-   <b>📋 점검 기록 입력</b>
-   <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px;">
-     <label>상태<br><select id="st" style="width:100%"><option>미점검</option><option>적정</option><option>조치필요</option></select></label>
-     <label>점검일<br><input type="date" id="dt" style="width:100%"></label>
-   </div>
-   <label style="display:block; margin-top:8px;">점검결과<br><input id="rs" placeholder="예: 현장 확인 완료" style="width:100%"></label>
-   <label style="display:block; margin-top:8px;">비고<br><textarea id="mm" placeholder="점검 메모"></textarea></label>
-   <div style="margin-top:10px;">
-     <button onclick="saveItem()">저장</button>
-     <button class="secondary" onclick="nav()">네이버지도</button>
-   </div>
- </div>
+    <div style="background:#f8f9fa; padding:10px; border-radius:8px; margin-bottom:12px; border:1px solid #ddd;">
+      <b>📋 점검 결과 입력</b>
+      <div style="margin-top:6px;">
+        <label>상태</label>
+        <select id="st"><option>미점검</option><option>적정</option><option>조치필요</option></select>
+      </div>
+      <div style="margin-top:6px;">
+        <label>점검일</label>
+        <input type="date" id="dt">
+      </div>
+      <div style="margin-top:6px;">
+        <label>점검결과</label>
+        <input id="rs" placeholder="결과 입력">
+      </div>
+      <div style="margin-top:6px;">
+        <label>메모</label>
+        <textarea id="mm" placeholder="특이사항"></textarea>
+      </div>
+      <div style="margin-top:8px;">
+        <button onclick="saveItem()">저장하기</button>
+        <button class="secondary" onclick="nav()">네이버지도</button>
+      </div>
+    </div>
+    <b>📄 사업장 상세 정보</b>
+    <div style="max-height:300px; overflow-y:auto; margin-top:6px; border:1px solid #eee; border-radius:8px;">
+      <table class="detail-table"><tbody>${detailHtml || '<tr><td class="muted">상세 항목이 없습니다. (엑셀 행에 데이터 추가 필요)</td></tr>'}</tbody></table>
+    </div>
+  `;
 
- <b>📄 사업장 상세 정보</b>
- <div style="max-height:320px; overflow:auto; margin-top:8px; border:1px solid #eee; border-radius:8px;">
-   <table class="detail-table">
-     <tbody>${detailRows || '<tr><td class="muted">상세 정보가 없습니다.</td></tr>'}</tbody>
-   </table>
- </div>`;
-
- document.getElementById("st").value = selected._status;
- document.getElementById("dt").value = selected._date;
- document.getElementById("rs").value = selected._result;
- document.getElementById("mm").value = selected._memo;
+  document.getElementById("st").value = selected._status;
+  document.getElementById("dt").value = selected._date;
+  document.getElementById("rs").value = selected._result;
+  document.getElementById("mm").value = selected._memo;
 }
 
 function saveItem(){
- if(!selected) return;
- selected._status = document.getElementById("st").value;
- selected._date = document.getElementById("dt").value;
- selected._result = document.getElementById("rs").value;
- selected._memo = document.getElementById("mm").value;
- save(); render(); selectItem(selected._id); msg("저장되었습니다");
+  if(!selected) return;
+  selected._status = document.getElementById("st").value;
+  selected._date = document.getElementById("dt").value;
+  selected._result = document.getElementById("rs").value;
+  selected._memo = document.getElementById("mm").value;
+  save(); render(); selectItem(selected._id);
+  alert("저장되었습니다.");
 }
 
 function nav(){
- if(!selected || !selected._addr) return;
- const query = encodeURIComponent(selected._addr);
- const appName = encodeURIComponent("사업장점검");
- const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-
- if(isMobile){
-   const appUrl = `nmap://search?query=${query}&appname=${appName}`;
-   const webUrl = `https://m.map.naver.com/search2/search.naver?query=${query}`;
-   const start = Date.now();
-   location.href = appUrl;
-   setTimeout(()=>{
-     if(Date.now() - start < 1500){
-       location.href = webUrl;
-     }
-   }, 500);
- } else {
-   window.open(`https://map.naver.com/p/search/${query}`, '_blank');
- }
+  if(!selected) return;
+  const target = selected._addr || selected._name;
+  window.open(`https://m.map.naver.com/search2/search.naver?query=${encodeURIComponent(target)}`, '_blank');
 }
 
 function exportData(){
- if(!data.length){alert("저장된 데이터가 없습니다.");return}
- 
- const exportList = data.map(item => {
-   const row = {};
-   row["점검상태"] = item._status;
-   row["점검일자"] = item._date;
-   row["점검결과"] = item._result;
-   row["점검메모"] = item._memo;
-   
-   for(const [k, v] of Object.entries(item)) {
-     if(!k.startsWith("_")) {
-       row[k] = v;
-     }
-   }
-   return row;
- });
-
- const ws = XLSX.utils.json_to_sheet(exportList);
- const wb = XLSX.utils.book_new();
- XLSX.utils.book_append_sheet(wb, ws, "점검관리");
- XLSX.writeFile(wb, "사업장_점검결과데이터.xlsx");
+  if(!data.length){ alert("저장된 데이터가 없습니다."); return; }
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "점검결과");
+  XLSX.writeFile(wb, "사업장_점검결과.xlsx");
 }
 
 function clearData(){
- if(confirm("저장된 점검관리 데이터를 모두 삭제할까요?")){
-  localStorage.removeItem(KEY); data = []; selected = null; render();
-  document.getElementById("detail").innerHTML = '<span class="muted">사업장을 선택하세요.</span>';
- }
+  if(confirm("모든 데이터를 초기화할까요?")){
+    localStorage.removeItem(KEY); data = []; selected = null; render();
+    document.getElementById("detail").innerHTML = '<div class="muted">목록에서 사업장을 선택하세요.</div>';
+    document.getElementById("msg").textContent = "";
+  }
 }
 
-function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
+function esc(s){ return String(s??"").replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m])); }
 
 render();
 </script>
