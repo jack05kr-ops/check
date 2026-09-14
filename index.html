@@ -54,7 +54,7 @@
             font-size: 13px;
         }
 
-        /* 점검일 입력 박스 - 아이폰 크기 폭주 방지 */
+        /* 점검일 입력 박스 */
         .date-section {
             display: flex;
             align-items: center;
@@ -87,11 +87,11 @@
         .search-box {
             display: flex;
             gap: 8px;
-            margin-top: 8px;
+            margin-bottom: 10px;
         }
 
         .search-box input[type="text"] {
-            flex: 1;
+            width: 100%;
             padding: 10px 12px;
             font-size: 14px;
             border: 1px solid #d1d5db;
@@ -103,18 +103,38 @@
             border-color: #2563eb;
         }
 
-        /* 사업장 목록 선택 */
-        select {
-            width: 100%;
-            padding: 10px 12px;
-            font-size: 14px;
-            border: 1px solid #d1d5db;
+        /* 사업장 목록 나열 스타일 */
+        .company-list {
+            max-height: 220px;
+            overflow-y: auto;
+            border: 1px solid #e5e7eb;
             border-radius: 8px;
-            background-color: #fff;
-            margin-top: 8px;
+            background: #fafafa;
+            -webkit-overflow-scrolling: touch;
         }
 
-        /* 사업장 상세정보 박스 - 잘림 및 두 줄 고정 현상 수정 */
+        .company-item {
+            padding: 10px 12px;
+            font-size: 14px;
+            border-bottom: 1px solid #edf2f7;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: #fff;
+        }
+
+        .company-item:last-child {
+            border-bottom: none;
+        }
+
+        .company-item:active, .company-item.active {
+            background-color: #eff6ff;
+            color: #2563eb;
+            font-weight: 600;
+        }
+
+        /* 사업장 상세정보 박스 */
         .detail-card {
             background: #ffffff;
             border-radius: 12px;
@@ -123,26 +143,52 @@
             margin-bottom: 12px;
         }
 
-        .detail-title {
-            font-size: 16px;
-            font-weight: 700;
-            color: #1e3a8a;
+        .detail-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             border-bottom: 2px solid #e2e8f0;
             padding-bottom: 8px;
             margin-bottom: 10px;
         }
 
+        .detail-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #1e3a8a;
+        }
+
+        /* 네이버 지도 버튼 */
+        .btn-naver-map {
+            background-color: #03cf5d;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            font-size: 12px;
+            font-weight: 600;
+            border-radius: 6px;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+        }
+
+        .btn-naver-map:active {
+            background-color: #02b350;
+        }
+
         .detail-content {
             width: 100%;
-            max-height: 55vh; /* 화면의 55% 높이까지만 차지 */
-            overflow-y: auto;  /* 두 줄로 잘리지 않고 부드러운 스크롤 제공 */
+            max-height: 45vh;
+            overflow-y: auto;
             -webkit-overflow-scrolling: touch;
             padding-right: 4px;
         }
 
         .info-row {
             display: flex;
-            padding: 6px 0;
+            padding: 7px 0;
             border-bottom: 1px solid #f1f5f9;
             font-size: 13.5px;
         }
@@ -228,26 +274,29 @@
         </div>
     </div>
 
-    <!-- 3. 사업장 검색 및 선택 -->
+    <!-- 3. 사업장 검색 및 나열 목록 -->
     <div class="card">
-        <label style="font-size: 13px; font-weight: 600; color: #555;">사업장 검색</label>
+        <label style="font-size: 13px; font-weight: 600; color: #555; display: block; margin-bottom: 6px;">사업장 선택</label>
         <div class="search-box">
-            <input type="text" id="searchInput" placeholder="사업장명 입력 후 검색" onkeyup="filterList()">
+            <input type="text" id="searchInput" placeholder="사업장명 검색..." onkeyup="filterList()">
         </div>
-        <select id="companySelect" onchange="displayDetail()">
-            <option value="">-- 사업장을 선택하세요 --</option>
-        </select>
+        <div class="company-list" id="companyList">
+            <div class="empty-msg">엑셀 파일을 올려주세요.</div>
+        </div>
     </div>
 
     <!-- 4. 사업장 상세정보 -->
     <div class="detail-card">
-        <div class="detail-title">사업장 상세정보</div>
+        <div class="detail-header">
+            <div class="detail-title">사업장 상세정보</div>
+            <div id="mapBtnArea"></div>
+        </div>
         <div class="detail-content" id="detailContent">
-            <div class="empty-msg">엑셀 파일을 올린 후 사업장을 선택해 주세요.</div>
+            <div class="empty-msg">목록에서 사업장을 선택해 주세요.</div>
         </div>
     </div>
 
-    <!-- 5. 저장이나 기타 버튼 영역 -->
+    <!-- 5. 하단 버튼 -->
     <div class="btn-group">
         <button class="btn btn-primary" onclick="saveResult()">점검결과 저장</button>
         <button class="btn btn-secondary" onclick="resetForm()">초기화</button>
@@ -255,8 +304,9 @@
 
     <script>
         let excelData = [];
+        let selectedIndex = -1;
 
-        // 오늘 날짜 기본 세팅
+        // 오늘 날짜 세팅
         document.getElementById('checkDate').value = new Date().toISOString().substring(0, 10);
 
         // 엑셀 파일 읽기
@@ -279,9 +329,8 @@
                         return;
                     }
 
-                    // LocalStorage 저장
                     localStorage.setItem('savedExcelData', JSON.stringify(excelData));
-                    populateSelect(excelData);
+                    renderCompanyList(excelData);
                     alert(`총 ${excelData.length}개 사업장을 불러왔습니다.`);
                 } catch (err) {
                     alert("엑셀 파일을 읽는 중 오류가 발생했습니다.");
@@ -291,62 +340,114 @@
             reader.readAsArrayBuffer(file);
         });
 
-        // 저장된 데이터가 있으면 로드
+        // 저장된 데이터 로드
         window.addEventListener('DOMContentLoaded', () => {
             const saved = localStorage.getItem('savedExcelData');
             if (saved) {
                 try {
                     excelData = JSON.parse(saved);
-                    populateSelect(excelData);
+                    renderCompanyList(excelData);
                 } catch(e) {}
             }
         });
 
-        // 드롭다운 채우기
-        function populateSelect(data) {
-            const select = document.getElementById('companySelect');
-            select.innerHTML = '<option value="">-- 사업장을 선택하세요 --</option>';
+        // 사업장 목록 나열
+        function renderCompanyList(data) {
+            const listContainer = document.getElementById('companyList');
+            if (data.length === 0) {
+                listContainer.innerHTML = '<div class="empty-msg">등록된 사업장이 없습니다.</div>';
+                return;
+            }
 
+            let html = '';
             data.forEach((row, index) => {
-                // 첫 번째 컬럼이나 '사업장명' 컬럼을 제목으로 사용
-                const companyName = row['사업장명'] || row['업체명'] || row['상호'] || Object.values(row)[0] || `사업장 ${index + 1}`;
-                const option = document.createElement('option');
-                option.value = index;
-                option.textContent = companyName;
-                select.appendChild(option);
+                const name = row['사업장명'] || row['업체명'] || row['상호'] || Object.values(row)[0] || `사업장 ${index + 1}`;
+                const addr = row['소재지'] || row['주소'] || row['사업장주소'] || '';
+                
+                html += `
+                    <div class="company-item ${selectedIndex === index ? 'active' : ''}" onclick="selectCompany(${index})">
+                        <div>
+                            <div style="font-weight:600;">${name}</div>
+                            ${addr ? `<div style="font-size:11px; color:#888;">${addr}</div>` : ''}
+                        </div>
+                        <span style="font-size:12px; color:#ccc;">›</span>
+                    </div>
+                `;
             });
+            listContainer.innerHTML = html;
         }
 
         // 검색 필터링
         function filterList() {
             const keyword = document.getElementById('searchInput').value.toLowerCase();
-            const select = document.getElementById('companySelect');
-            select.innerHTML = '<option value="">-- 사업장을 선택하세요 --</option>';
+            const filtered = [];
 
             excelData.forEach((row, index) => {
-                const companyName = String(row['사업장명'] || row['업체명'] || row['상호'] || Object.values(row)[0] || '');
-                if (companyName.toLowerCase().includes(keyword)) {
-                    const option = document.createElement('option');
-                    option.value = index;
-                    option.textContent = companyName;
-                    select.appendChild(option);
+                const name = String(row['사업장명'] || row['업체명'] || row['상호'] || Object.values(row)[0] || '');
+                const addr = String(row['소재지'] || row['주소'] || row['사업장주소'] || '');
+                
+                if (name.toLowerCase().includes(keyword) || addr.toLowerCase().includes(keyword)) {
+                    filtered.push({ row, originalIndex: index });
                 }
             });
-        }
 
-        // 상세 정보 표시
-        function displayDetail() {
-            const selectIndex = document.getElementById('companySelect').value;
-            const detailContainer = document.getElementById('detailContent');
-
-            if (selectIndex === "") {
-                detailContainer.innerHTML = '<div class="empty-msg">선택된 사업장이 없습니다.</div>';
+            const listContainer = document.getElementById('companyList');
+            if (filtered.length === 0) {
+                listContainer.innerHTML = '<div class="empty-msg">검색 결과가 없습니다.</div>';
                 return;
             }
 
-            const item = excelData[selectIndex];
             let html = '';
+            filtered.forEach(item => {
+                const name = item.row['사업장명'] || item.row['업체명'] || item.row['상호'] || Object.values(item.row)[0] || `사업장 ${item.originalIndex + 1}`;
+                const addr = item.row['소재지'] || item.row['주소'] || item.row['사업장주소'] || '';
 
+                html += `
+                    <div class="company-item ${selectedIndex === item.originalIndex ? 'active' : ''}" onclick="selectCompany(${item.originalIndex})">
+                        <div>
+                            <div style="font-weight:600;">${name}</div>
+                            ${addr ? `<div style="font-size:11px; color:#888;">${addr}</div>` : ''}
+                        </div>
+                        <span style="font-size:12px; color:#ccc;">›</span>
+                    </div>
+                `;
+            });
+            listContainer.innerHTML = html;
+        }
+
+        // 사업장 선택 및 상세정보 + 네이버 지도 연동
+        function selectCompany(index) {
+            selectedIndex = index;
+            
+            // 목록 선택 상태 업데이트
+            const keyword = document.getElementById('searchInput').value;
+            if (keyword) filterList(); else renderCompanyList(excelData);
+
+            const item = excelData[index];
+            const detailContainer = document.getElementById('detailContent');
+            const mapBtnArea = document.getElementById('mapBtnArea');
+
+            // 네이버 지도 검색용 정보 추출 (주소 우선, 없으면 사업장명)
+            const companyName = item['사업장명'] || item['업체명'] || item['상호'] || '';
+            const address = item['소재지'] || item['주소'] || item['사업장주소'] || item['소재지(도로명)'] || item['소재지(지번)'] || companyName;
+
+            // 네이버 지도 앱 Scheme & Web URL 생성
+            if (address) {
+                const encodedQuery = encodeURIComponent(address);
+                const appUrl = `navermaps://search?query=${encodedQuery}`;
+                const webUrl = `https://m.map.naver.com/search2/search.naver?query=${encodedQuery}`;
+
+                mapBtnArea.innerHTML = `
+                    <a href="${appUrl}" onclick="openNaverMap(event, '${appUrl}', '${webUrl}')" class="btn-naver-map">
+                        📍 네이버 지도
+                    </a>
+                `;
+            } else {
+                mapBtnArea.innerHTML = '';
+            }
+
+            // 상세 내용 출력
+            let html = '';
             for (const [key, value] of Object.entries(item)) {
                 html += `
                     <div class="info-row">
@@ -355,21 +456,37 @@
                     </div>
                 `;
             }
-
             detailContainer.innerHTML = html;
         }
 
-        // 점검 저장 예시
-        function saveResult() {
-            const selectIndex = document.getElementById('companySelect').value;
-            const dateVal = document.getElementById('checkDate').value;
+        // 네이버 지도 열기 핸들러 (앱 없으면 웹 연결)
+        function openNaverMap(event, appUrl, webUrl) {
+            event.preventDefault();
+            const clickedAt = +new Date();
+            
+            // 앱 열기 시도
+            window.location.href = appUrl;
 
-            if (selectIndex === "") {
-                alert("사업장을 먼저 선택해 주세요.");
+            // 앱이 안 열릴 경우 1.5초 후 웹 페이지 이동
+            setTimeout(function() {
+                if (+new Date() - clickedAt < 2000) {
+                    window.open(webUrl, '_blank');
+                }
+            }, 1500);
+        }
+
+        // 저장 기능
+        function saveResult() {
+            if (selectedIndex === -1) {
+                alert("사업장을 목록에서 선택해 주세요.");
                 return;
             }
 
-            alert(`[저장 완료]\n점검일: ${dateVal}\n사업장: ${document.getElementById('companySelect').options[document.getElementById('companySelect').selectedIndex].text}`);
+            const item = excelData[selectedIndex];
+            const name = item['사업장명'] || item['업체명'] || item['상호'] || Object.values(item)[0];
+            const dateVal = document.getElementById('checkDate').value;
+
+            alert(`[점검저장 완료]\n점검일: ${dateVal}\n사업장: ${name}`);
         }
 
         // 초기화
@@ -377,8 +494,10 @@
             if (confirm("저장된 데이터를 초기화하시겠습니까?")) {
                 localStorage.removeItem('savedExcelData');
                 excelData = [];
-                document.getElementById('companySelect').innerHTML = '<option value="">-- 사업장을 선택하세요 --</option>';
-                document.getElementById('detailContent').innerHTML = '<div class="empty-msg">데이터가 초기화되었습니다.</div>';
+                selectedIndex = -1;
+                document.getElementById('companyList').innerHTML = '<div class="empty-msg">데이터가 초기화되었습니다.</div>';
+                document.getElementById('detailContent').innerHTML = '<div class="empty-msg">목록에서 사업장을 선택해 주세요.</div>';
+                document.getElementById('mapBtnArea').innerHTML = '';
                 document.getElementById('excelFile').value = '';
                 document.getElementById('searchInput').value = '';
             }
