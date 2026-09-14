@@ -314,7 +314,23 @@ function saveItem(){
 function nav(){
   if(!selected) return;
   const target = selected._addr || selected._name;
-  window.open(`https://m.map.naver.com/search2/search.naver?query=${encodeURIComponent(target)}`, '_blank');
+  if(!target) return;
+
+  const query = encodeURIComponent(target);
+  const appUrl = `navermaps://search?query=${query}`;
+  const webUrl = `https://m.map.naver.com/search2/search.naver?query=${query}`;
+
+  const start = Date.now();
+  
+  // 1. 네이버 지도 앱 실행 시도
+  window.location.href = appUrl;
+
+  // 2. 앱이 설치되어 있지 않거나 안 열릴 경우 1초 뒤 웹 지도 열기
+  setTimeout(function() {
+    if (Date.now() - start < 1500) {
+      window.open(webUrl, '_blank');
+    }
+  }, 1000);
 }
 
 function exportData(){
